@@ -12,8 +12,11 @@ type runeWriter interface {
 }
 
 func Split(r io.Reader) ([]string, error) {
+	return split(bufio.NewReader(r))
+}
+
+func split(rs io.Reader) ([]string, error) {
 	var (
-		rs  = bufio.NewReader(r)
 		buf bytes.Buffer
 		str []string
 	)
