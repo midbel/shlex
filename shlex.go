@@ -40,6 +40,8 @@ func split(rs *bufio.Reader) ([]string, error) {
 			err = readQuote(&buf, rs, r)
 		case isDelimiter(r):
 			readDelimiter(&buf, rs, r)
+		case isComment(r):
+			readComment(&buf, rs, r)
 		default:
 			readWord(&buf, rs, r)
 		}
@@ -50,6 +52,17 @@ func split(rs *bufio.Reader) ([]string, error) {
 		buf.Reset()
 	}
 	return str, nil
+}
+
+func readComment(str runeWriter, rs io.RuneScanner) error {
+	str.WriteRune(dash)
+	for {
+		r, _, err := rs.ReadRune()
+		if err != nil {
+			break
+		}
+		str.WriteRune(r)
+	}
 }
 
 func readDollar(str runeWriter, rs io.RuneScanner) error {
@@ -208,10 +221,15 @@ const (
 	dollar    = '$'
 	lparen    = '('
 	rparen    = ')'
+	dash      = '#'
 )
 
 func eow(r rune) bool {
-	return isDelimiter(r) || isQuote(r) || isBlank(r) || isNL(r)
+	return isComment(r) || isDelimiter(r) || isQuote(r) || isBlank(r) || isNL(r)
+}
+
+func isComment(r rune) bool {
+	return r == dash
 }
 
 func isDollar(r rune) bool {
