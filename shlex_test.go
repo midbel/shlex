@@ -59,6 +59,26 @@ var list = []struct {
 		Input: `echo $((1+1*(2-1)))`,
 		Want:  []string{"echo", "$((1+1*(2-1)))"},
 	},
+	{
+		Input: `echo ${var#prefix}`,
+		Want:  []string{"echo", "${var#prefix}"},
+	},
+	{
+		Input: `echo ${var/from/to}`,
+		Want:  []string{"echo", "${var/from/to}"},
+	},
+	{
+		Input: `echo {1,2,3}`,
+		Want:  []string{"echo", "{1,2,3}"},
+	},
+	{
+		Input: `echo {1..10}`,
+		Want:  []string{"echo", "{1..10}"},
+	},
+	{
+		Input: `echo {}`,
+		Want:  []string{"echo", "{}"},
+	},
 }
 
 func TestSplit(t *testing.T) {

@@ -7,6 +7,8 @@ import (
 	"io"
 )
 
+var ErrInvalid = errors.New("invalid word")
+
 type runeWriter interface {
 	WriteRune(rune) (int, error)
 }
@@ -15,7 +17,7 @@ func Split(r io.Reader) ([]string, error) {
 	return split(bufio.NewReader(r))
 }
 
-func split(rs io.Reader) ([]string, error) {
+func split(rs *bufio.Reader) ([]string, error) {
 	var (
 		buf bytes.Buffer
 		str []string
@@ -33,13 +35,16 @@ func split(rs io.Reader) ([]string, error) {
 			readBlank(rs)
 			continue
 		case isDollar(r):
-			readDollar(&buf, rs)
+			err = readDollar(&buf, rs)
 		case isQuote(r):
-			readQuote(&buf, rs, r)
+			err = readQuote(&buf, rs, r)
 		case isDelimiter(r):
 			readDelimiter(&buf, rs, r)
 		default:
 			readWord(&buf, rs, r)
+		}
+		if err != nil {
+			return str, err
 		}
 		str = append(str, buf.String())
 		buf.Reset()
@@ -47,73 +52,96 @@ func split(rs io.Reader) ([]string, error) {
 	return str, nil
 }
 
-func readDollar(str runeWriter, rs io.RuneScanner) {
+func readDollar(str runeWriter, rs io.RuneScanner) error {
 	if r, _, _ := rs.ReadRune(); r != lparen {
 		rs.UnreadRune()
 		readWord(str, rs, dollar)
-		return
+		return nil
 	}
 	if r, _, _ := rs.ReadRune(); r == lparen {
-		readArithmetic(str, rs)
-		return
+		return readArithmetic(str, rs)
 	}
 	rs.UnreadRune()
-	readSubstitution(str, rs)
+	return readSubstitution(str, rs)
 }
 
-func readSubstitution(str runeWriter, rs io.RuneScanner) {
+func readSubstitution(str runeWriter, rs io.RuneScanner) error {
 	str.WriteRune(dollar)
 	str.WriteRune(lparen)
 
-	var (
-		count int
-		prev  rune
-	)
 	for {
 		r, _, err := rs.ReadRune()
 		if err != nil {
-			return
+			return ErrInvalid
+		}
+		if r == dollar {
+			if err = readDollar(str, rs); err != nil {
+				return err
+			}
+			continue
 		}
 		if r == rparen {
-			if count == 0 {
-				break
-			}
-			count--
+			break
 		}
-		if prev == dollar && r == lparen {
-			count++
+		str.WriteRune(r)
+	}
+	str.WriteRune(rparen)
+	return nil
+}
+
+func readArithmetic(str runeWriter, rs io.RuneScanner) error {
+	str.WriteRune(dollar)
+	str.WriteRune(lparen)
+	str.WriteRune(lparen)
+
+	var prev rune
+	for {
+		r, _, err := rs.ReadRune()
+		if err != nil {
+			return ErrInvalid
+		}
+		if r == dollar {
+			if err = readDollar(str, rs); err != nil {
+				return err
+			}
+			continue
+		}
+		if r == rparen && prev == rparen {
+			break
+		}
+		if r == lparen {
+			if err = readGroup(str, rs); err != nil {
+				return err
+			}
+			continue
 		}
 		prev = r
 		str.WriteRune(r)
 	}
 	str.WriteRune(rparen)
+	return nil
 }
 
-func readArithmetic(str runeWriter, rs io.RuneScanner) {
-	str.WriteRune(dollar)
+func readGroup(str runeWriter, rs io.RuneScanner) error {
 	str.WriteRune(lparen)
-	str.WriteRune(lparen)
-
-	var count int
 	for {
-		r, _, err := rs.ReadRune()
+		c, _, err := rs.ReadRune()
 		if err != nil {
-			return
+			return ErrInvalid
 		}
-		if r == rparen {
-			if r, _, _ := rs.ReadRune(); r == rparen && count == 0 {
-				break
+		if c == rparen {
+			break
+		}
+		if c == lparen {
+			if err = readGroup(str, rs); err != nil {
+				return err
 			}
-			count--
-			rs.UnreadRune()
+			continue
 		}
-		if r == lparen {
-			count++
-		}
-		str.WriteRune(r)
+		str.WriteRune(c)
 	}
 	str.WriteRune(rparen)
-	str.WriteRune(rparen)
+	return nil
 }
 
 func readWord(str runeWriter, rs io.RuneScanner, r rune) {
@@ -140,16 +168,20 @@ func readDelimiter(str runeWriter, rs io.RuneScanner, r rune) {
 	rs.UnreadRune()
 }
 
-func readQuote(str runeWriter, rs io.RuneReader, quote rune) {
+func readQuote(str runeWriter, rs io.RuneReader, quote rune) error {
 	var prev rune
 	for {
 		r, _, err := rs.ReadRune()
-		if (r == quote && prev != backslash) || err != nil {
+		if err != nil {
+			return ErrInvalid
+		}
+		if r == quote && prev != backslash {
 			break
 		}
 		prev = r
 		str.WriteRune(r)
 	}
+	return nil
 }
 
 func readBlank(rs io.RuneScanner) {
