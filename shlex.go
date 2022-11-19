@@ -34,6 +34,10 @@ func split(rs *bufio.Reader) ([]string, error) {
 		case isNL(r) || isBlank(r):
 			readBlank(rs)
 			continue
+		case isBrace(r):
+			err = readBrace(&buf, rs)
+		case isParen(r):
+			err = readGroup(&buf, rs)
 		case isDollar(r):
 			err = readDollar(&buf, rs)
 		case isQuote(r):
@@ -41,7 +45,7 @@ func split(rs *bufio.Reader) ([]string, error) {
 		case isDelimiter(r):
 			readDelimiter(&buf, rs, r)
 		case isComment(r):
-			readComment(&buf, rs, r)
+			readComment(&buf, rs)
 		default:
 			readWord(&buf, rs, r)
 		}
@@ -63,6 +67,7 @@ func readComment(str runeWriter, rs io.RuneScanner) error {
 		}
 		str.WriteRune(r)
 	}
+	return nil
 }
 
 func readDollar(str runeWriter, rs io.RuneScanner) error {
@@ -132,6 +137,28 @@ func readArithmetic(str runeWriter, rs io.RuneScanner) error {
 		str.WriteRune(r)
 	}
 	str.WriteRune(rparen)
+	return nil
+}
+
+func readBrace(str runeWriter, rs io.RuneScanner) error {
+	str.WriteRune(lcurly)
+	for {
+		c, _, err := rs.ReadRune()
+		if err != nil {
+			return ErrInvalid
+		}
+		if c == rcurly {
+			break
+		}
+		if c == lcurly {
+			if err = readBrace(str, rs); err != nil {
+				return err
+			}
+			continue
+		}
+		str.WriteRune(c)
+	}
+	str.WriteRune(rcurly)
 	return nil
 }
 
@@ -221,11 +248,21 @@ const (
 	dollar    = '$'
 	lparen    = '('
 	rparen    = ')'
+	lcurly    = '{'
+	rcurly    = '}'
 	dash      = '#'
 )
 
 func eow(r rune) bool {
-	return isComment(r) || isDelimiter(r) || isQuote(r) || isBlank(r) || isNL(r)
+	return isDelimiter(r) || isQuote(r) || isBlank(r) || isNL(r)
+}
+
+func isParen(r rune) bool {
+	return r == lparen
+}
+
+func isBrace(r rune) bool {
+	return r == lcurly
 }
 
 func isComment(r rune) bool {

@@ -79,6 +79,22 @@ var list = []struct {
 		Input: `echo {}`,
 		Want:  []string{"echo", "{}"},
 	},
+	{
+		Input: `echo foobar # a comment`,
+		Want:  []string{"echo", "foobar", "# a comment"},
+	},
+	{
+		Input: `echo (echo foobar)`,
+		Want:  []string{"echo", "(echo foobar)"},
+	},
+	{
+		Input: `echo (echo foobar (echo foobar))`,
+		Want:  []string{"echo", "(echo foobar (echo foobar))"},
+	},
+	{
+		Input: `echo { echo foobar; }`,
+		Want:  []string{"echo", "{ echo foobar; }"},
+	},
 }
 
 func TestSplit(t *testing.T) {
