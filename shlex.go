@@ -5,12 +5,17 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"strings"
 )
 
 var ErrInvalid = errors.New("invalid word")
 
 type runeWriter interface {
 	WriteRune(rune) (int, error)
+}
+
+func SplitString(str string) ([]string, error) {
+	return Split(strings.NewReader(str))
 }
 
 func Split(r io.Reader) ([]string, error) {
@@ -186,14 +191,18 @@ func readGroup(str runeWriter, rs io.RuneScanner) error {
 
 func readWord(str runeWriter, rs io.RuneScanner, r rune) {
 	str.WriteRune(r)
+	var unread bool
 	for {
 		r, _, err := rs.ReadRune()
 		if eow(r) || err != nil {
+			unread = r != equal
 			break
 		}
 		str.WriteRune(r)
 	}
-	rs.UnreadRune()
+	if unread {
+		rs.UnreadRune()
+	}
 }
 
 func readDelimiter(str runeWriter, rs io.RuneScanner, r rune) {
@@ -251,10 +260,12 @@ const (
 	lcurly    = '{'
 	rcurly    = '}'
 	dash      = '#'
+	equal     = '='
+	minus     = '-'
 )
 
 func eow(r rune) bool {
-	return isDelimiter(r) || isQuote(r) || isBlank(r) || isNL(r)
+	return isDelimiter(r) || isQuote(r) || isBlank(r) || isNL(r) || r == equal
 }
 
 func isParen(r rune) bool {

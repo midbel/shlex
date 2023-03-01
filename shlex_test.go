@@ -20,6 +20,10 @@ var list = []struct {
 		Want:  []string{"echo", "-e", "foo", "bar"},
 	},
 	{
+		Input: `echo --option=value`,
+		Want:  []string{"echo", "--option", "value"},
+	},
+	{
 		Input: `echo foo bar`,
 		Want:  []string{"echo", "foo", "bar"},
 	},
